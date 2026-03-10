@@ -3,7 +3,9 @@ X_No_Archive: Yes
 abstract: 'DAG-CBOR encoder and decoder'
 author:
   - 'Sanko Robinson <sanko@cpan.org>'
-build_requires: {}
+build_requires:
+  Module::Build::Tiny: '0'
+  Test2::V0: '0'
 configure_requires:
   CPAN::Meta: '0'
   Exporter: '5.57'

@@ -23,6 +23,11 @@
       "package" : []
    },
    "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Module::Build::Tiny" : "0"
+         }
+      },
       "configure" : {
          "requires" : {
             "CPAN::Meta" : "0",
@@ -38,6 +43,11 @@
             "JSON::PP" : "2",
             "Path::Tiny" : "0",
             "perl" : "v5.40.0"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "Test2::V0" : "0"
          }
       }
    },
