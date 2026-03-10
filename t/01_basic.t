@@ -42,7 +42,9 @@ subtest 'Tag 42 (CID)' => sub {
     my $cid     = Mock::CID->new();
     my $encoded = $codec->encode($cid);
     my $decoded = $codec->decode($encoded);
-    is( ref $decoded,        'HASH',   "Decoded Tag 42 into hash (default handler)" );
+    is( ref $decoded, 'HASH', "Decoded Tag 42 into hash (default handler)" );
+
+    # Default handler strips the leading 00 if present
     is( $decoded->{cid_raw}, "foobar", "Extracted cid_raw matches" );
 };
 done_testing;

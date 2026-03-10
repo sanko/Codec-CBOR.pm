@@ -26,7 +26,7 @@ my @objects = $codec->decode_sequence($concatenated_bytes);
 # DESCRIPTION
 
 Codec::CBOR is a thin, pure Perl implementation of the Concise Binary Object Representation (CBOR) format, specifically
-optimized for DAG-CBOR as used in the [AT](https://metacpan.org/pod/AT) Protocol and [IPFS](https://metacpan.org/pod/Interplanetary).
+optimized for DAG-CBOR as used in the [AT](https://metacpan.org/pod/At) Protocol and [IPFS](https://metacpan.org/pod/Interplanetary).
 
 ## DAG-CBOR Compliance
 

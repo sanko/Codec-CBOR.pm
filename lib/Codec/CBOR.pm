@@ -2,32 +2,40 @@ use v5.40;
 use feature 'class';
 no warnings 'experimental::class';
 #
+package    # Simple boolean wrapper
+    Codec::CBOR::Boolean {
+    use overload 'bool' => sub { ${ $_[0] } }, '""' => sub { ${ $_[0] } ? 'true' : 'false' }, fallback => 1;
+    sub new ( $class, $val ) { my $v = $val ? 1 : 0; bless \$v, $class }
+}
+#
 class Codec::CBOR v0.0.1 {
+    field %class_handlers;
     field %tag_handlers = (
-        42 => sub ($data) {    # Default Tag 42 handler(generic)
-            if ( !ref $data && substr( $data, 0, 1 ) eq "\x00" ) {
-                return { cid_raw => substr( $data, 1 ) };
-            }
-            return $data;
+        42 => sub ($data) {    # Default Tag 42 handler (generic)
+            my $cid_raw = $data;
+            return { cid_raw => substr( $cid_raw, 1 ) } if length($cid_raw) > 0 && substr( $cid_raw, 0, 1 ) eq "\x00";
+            return { cid_raw => $cid_raw };
         }
     );
-    field %class_handlers;
+    #
     method add_tag_handler   ( $tag, $cb )   { $tag_handlers{$tag}     = $cb }
     method add_class_handler ( $class, $cb ) { $class_handlers{$class} = $cb }
-    method encode            ($data)         { return $self->_encode_item($data) }
+    sub true_obj          { state $r //= Codec::CBOR::Boolean->new(1); $r; }
+    sub false_obj         { state $r //= Codec::CBOR::Boolean->new(0); $r; }
+    method encode ($data) { $self->_encode_item($data) }
 
     method decode ($input) {
         if ( !ref $input ) {
-            open my $fh, "<:raw", \$input;
+            open my $fh, '<:raw', \$input;
             return $self->_decode_item($fh);
         }
-        return $self->_decode_item($input);
+        $self->_decode_item($input);
     }
 
     method decode_sequence ($input) {
         my $fh;
         if ( !ref $input ) {
-            open $fh, "<:raw", \$input;
+            open $fh, '<:raw', \$input;
         }
         else {
             $fh = $input;
@@ -36,27 +44,27 @@ class Codec::CBOR v0.0.1 {
         while (1) {
             my $item;
             try { $item = $self->_decode_item($fh); } catch ($e) {
-                ;
-            }
-            last if $@ || !defined $item;
+                last
+            };
+            last if !defined $item && eof($fh);
             push @items, $item;
             last if eof($fh);
         }
-        return wantarray ? @items : \@items;
+        wantarray ? @items : \@items;
     }
 
-    method _encode_item ($item) {
-        return pack( 'C', 0xf6 ) unless defined $item;    # null
+    method _encode_item ( $item //= () ) {
+        return pack 'C', 0xf6 unless defined $item;    # null
         my $ref = ref($item);
         if ( !$ref ) {
-
-            # Integer or UTF-8 String
-            return $self->_encode_int($item) if $item =~ /^-?\d+$/ && length($item) < 20;
+            return pack( 'C', 0xfb ) . pack( 'd>', $item ) if $item =~ /^-?\d+\.\d+$/;                     # Float check (simple heuristic for now)
+            return $self->_encode_int($item)               if $item =~ /^-?\d+$/ && length($item) < 20;    # Integer or UTF-8 String
             return $self->_encode_utf8($item);
         }
-        return $self->_encode_bytes($$item) if $ref eq 'SCALAR';
-        return $self->_encode_array($item)  if $ref eq 'ARRAY';
-        return $self->_encode_hash($item)   if $ref eq 'HASH';
+        return $self->_encode_bytes($$item)      if $ref eq 'SCALAR';
+        return $self->_encode_array($item)       if $ref eq 'ARRAY';
+        return $self->_encode_hash($item)        if $ref eq 'HASH';
+        return pack( "C", $$item ? 0xf5 : 0xf4 ) if builtin::blessed($item) && $item->isa('Codec::CBOR::Boolean');
 
         # Handle registered classes (like CID)
         for my $class ( keys %class_handlers ) {
@@ -64,11 +72,11 @@ class Codec::CBOR v0.0.1 {
         }
 
         # Fallback for generic CID-like objects if not registered
-        if ( blessed($item) && $item->can('raw') ) {
+        if ( builtin::blessed($item) && $item->can('raw') ) {
             my $raw = $item->raw;
             return pack( 'C', 0xd8 ) . pack( 'C', 42 ) . $self->_encode_bytes( "\x00" . $raw );
         }
-        die "Codec::CBOR: Cannot encode $ref";
+        die 'Codec::CBOR: Cannot encode ' . $ref;
     }
 
     method _encode_int ($val) {
@@ -127,7 +135,7 @@ class Codec::CBOR v0.0.1 {
             read( $fh, my $buf, $len );
             my $decoded = $buf;
             try {
-                die 'Invalid UTF-8' unless utf8::decode($decoded)
+                die 'Invalid UTF-8' unless utf8::decode($decoded);
             }
             catch ($e) {
 
@@ -156,19 +164,22 @@ class Codec::CBOR v0.0.1 {
             my $tag = $self->_decode_value( $info, $fh );
             my $val = $self->_decode_item($fh);
             return $tag_handlers{$tag}->($val) if exists $tag_handlers{$tag};
-            return $val;        # Return inner value if no handler
+            return $val;
         }
-        if ( $major == 7 ) {    # Simple
-            return 0     if $info == 20;    # False
-            return 1     if $info == 21;    # True
-            return undef if $info == 22;    # Null
+        if ( $major == 7 ) {    # Simple / Float
+            return Codec::CBOR::Boolean->new(0) if $info == 20;
+            return Codec::CBOR::Boolean->new(1) if $info == 21;
+            return undef                        if $info == 22;
+            if ( $info == 25 ) { read( $fh, my $b, 2 ); return unpack( "f>", $b ); }
+            if ( $info == 26 ) { read( $fh, my $b, 4 ); return unpack( "f>", $b ); }
+            if ( $info == 27 ) { read( $fh, my $b, 8 ); return unpack( "d>", $b ); }
             return $self->_decode_value( $info, $fh );
         }
         die 'Codec::CBOR: Unsupported major type ' . $major;
     }
 
     method _decode_value ( $info, $fh ) {
-        if ( $info < 24 )  { return $info; }
+        return $info if $info < 24;
         if ( $info == 24 ) { read( $fh, my $b, 1 ); return unpack( "C",  $b ); }
         if ( $info == 25 ) { read( $fh, my $b, 2 ); return unpack( "n",  $b ); }
         if ( $info == 26 ) { read( $fh, my $b, 4 ); return unpack( "N",  $b ); }

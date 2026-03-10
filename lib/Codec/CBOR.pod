@@ -28,7 +28,7 @@ Codec::CBOR - DAG-CBOR encoder and decoder
 =head1 DESCRIPTION
 
 Codec::CBOR is a thin, pure Perl implementation of the Concise Binary Object Representation (CBOR) format, specifically
-optimized for DAG-CBOR as used in the L<AT> Protocol and L<IPFS|Interplanetary>.
+optimized for DAG-CBOR as used in the L<AT|At> Protocol and L<IPFS|Interplanetary>.
 
 =head2 DAG-CBOR Compliance
 
