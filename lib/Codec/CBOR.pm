@@ -136,10 +136,8 @@ class Codec::CBOR v0.0.1 {
             my $decoded = $buf;
             return $decoded if utf8::decode($decoded);
 
-            # Fallback for invalid UTF-8: sanitize and hope for the best...
-            $decoded = $buf;
-            $decoded =~ s/[^\x00-\x7F]/?/g;
-            return $decoded;
+            # Fallback for invalid UTF-8: return raw bytes
+            return $buf;
         }
         if ( $major == 4 ) {    # Array
             my $len = $self->_decode_value( $info, $fh );
