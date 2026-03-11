@@ -41,14 +41,19 @@ class Codec::CBOR v0.0.1 {
             $fh = $input;
         }
         my @items;
-        while (1) {
+        my $safety   = 0;
+        my $last_pos = tell($fh);
+        while ( !eof($fh) ) {
             my $item;
-            try { $item = $self->_decode_item($fh); } catch ($e) {
-                last
-            };
-            last if !defined $item && eof($fh);
-            push @items, $item;
-            last if eof($fh);
+            try { $item = $self->_decode_item($fh); }
+            catch ($e) {
+                last;
+            }
+            my $curr_pos = tell($fh);
+            last if $curr_pos <= $last_pos && !eof($fh);    # Failed to advance but not at EOF? Stop to avoid infinite loop.
+            $last_pos = $curr_pos;
+            push @items, $item if defined $item || !eof($fh);
+            last if ++$safety > 10000;
         }
         wantarray ? @items : \@items;
     }
@@ -151,7 +156,7 @@ class Codec::CBOR v0.0.1 {
             for ( 1 .. $len ) {
                 my $k = $self->_decode_item($fh);
                 my $v = $self->_decode_item($fh);
-                $hash{$k} = $v;
+                $hash{$k} = $v if defined $k;
             }
             return \%hash;
         }
