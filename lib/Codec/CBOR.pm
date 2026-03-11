@@ -134,14 +134,11 @@ class Codec::CBOR v0.0.1 {
             my $len = $self->_decode_value( $info, $fh );
             read( $fh, my $buf, $len );
             my $decoded = $buf;
-            try {
-                die 'Invalid UTF-8' unless utf8::decode($decoded);
-            }
-            catch ($e) {
+            return $decoded if utf8::decode($decoded);
 
-                #~ warn $e;
-                return $buf;    # Return raw bytes if decoding fails
-            }
+            # Fallback for invalid UTF-8: sanitize
+            $decoded = $buf;
+            $decoded =~ s/[^\x00-\x7F]/?/g;
             return $decoded;
         }
         if ( $major == 4 ) {    # Array

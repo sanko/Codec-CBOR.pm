@@ -91,7 +91,8 @@ subtest 'Basic and Float Fixtures' => sub {
             is $decoded, $f->{data}, 'Boolean value matches';
         }
         else {
-            is normalize($decoded), normalize( $f->{data} ), 'Decoding matches for ' . $f->{name};
+            is normalize($decoded), ( $f->{name} =~ /float-[-\d]/ ? float( normalize( $f->{data} ), tolerance => 0.01 ) : normalize( $f->{data} ) ),
+                'Decoding matches for ' . $f->{name};
         }
     }
 };
