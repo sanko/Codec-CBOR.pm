@@ -20,11 +20,27 @@ class Codec::CBOR v1.0.1 {
     #
     method add_tag_handler   ( $tag, $cb )   { $tag_handlers{$tag}     = $cb }
     method add_class_handler ( $class, $cb ) { $class_handlers{$class} = $cb }
-    sub true_obj          { state $r //= Codec::CBOR::Boolean->new(1); $r; }
-    sub false_obj         { state $r //= Codec::CBOR::Boolean->new(0); $r; }
-    method encode ($data) { $self->_encode_item($data) }
+    sub true_obj  { state $r //= Codec::CBOR::Boolean->new(1); $r; }
+    sub false_obj { state $r //= Codec::CBOR::Boolean->new(0); $r; }
+    sub _instance { state $i //= Codec::CBOR->new();           $i }
 
-    method decode ($input) {
+    sub encode {
+        my $self = shift;
+        if ( defined $self && ( !ref($self) && $self eq 'Codec::CBOR' || builtin::blessed($self) && $self->isa('Codec::CBOR') ) ) {
+            return $self->_encode_item(@_);
+        }
+        return _instance()->_encode_item( $self, @_ );
+    }
+
+    sub decode {
+        my $self = shift;
+        if ( defined $self && ( !ref($self) && $self eq 'Codec::CBOR' || builtin::blessed($self) && $self->isa('Codec::CBOR') ) ) {
+            return $self->_decode_input(@_);
+        }
+        return _instance()->_decode_input( $self, @_ );
+    }
+
+    method _decode_input ($input) {
         if ( !ref $input ) {
             open my $fh, '<:raw', \$input;
             return $self->_decode_item($fh);
